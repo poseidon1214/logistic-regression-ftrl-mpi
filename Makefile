@@ -8,11 +8,11 @@ GTEST_INCLUDE = -I/usr/local/include/gtest
 #train code
 CPP_tag = -std=gnu++11
 
-train:lr_main.o
-	mpicxx $(CPP_tag) -o train lr_main.o $(INCLUDE) $(LIB) -lpthread -lopenblas -lglog
+train:main.o
+	mpicxx $(CPP_tag) -o train main.o $(INCLUDE) $(LIB) -lpthread -lopenblas -lglog
 
-lr_main.o: src/lr_main.cpp
-	mpicxx $(CPP_tag) $(INCLUDE) $(GLOG_INCLUDE) -c src/lr_main.cpp
+lr_main.o: src/main.cpp
+	mpicxx $(CPP_tag) $(INCLUDE) $(GLOG_INCLUDE) -c src/main.cpp
 
 #predict code
 #predict: predict.o
