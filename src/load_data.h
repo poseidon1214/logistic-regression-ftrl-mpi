@@ -13,6 +13,7 @@
 struct sparse_feature{
     long int idx;
     int val;
+    //float val;
 };
 
 class Load_Data {
@@ -23,9 +24,9 @@ public:
     sparse_feature sf;
     std::vector<int> label;
     std::string line;
-    std::set<long int> feaIdx;
-    std::set<long int>::iterator setIter;
-    int y, value, nchar;
+    int y, nchar;
+    //float value;
+    int value;
     long int index;
     long int loc_fea_dim = 0;
     long int glo_fea_dim = 0;
@@ -55,13 +56,10 @@ public:
                 pline += nchar;
                 label.push_back(y);
                 while(sscanf(pline, "%ld:%d%n", &index, &value, &nchar) >= 2){
+                //while(sscanf(pline, "%ld:%lf%n", &index, &value, &nchar) >= 2){
                     pline += nchar;
                     sf.idx = index;
                     if(index+1 > loc_fea_dim) loc_fea_dim = index+1;
-                    setIter = feaIdx.find(index);
-                    if(setIter == feaIdx.end()){
-                        feaIdx.insert(index);
-                    }
                     sf.val = value;
                     key_val.push_back(sf);
                 }

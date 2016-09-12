@@ -1,7 +1,7 @@
 #!/bin/bash
 INCLUDEPATH = -I/usr/local/include/ 
 LIBRARYPATH = -L/usr/local/lib 
-LIBRARY = -lpthread -lglog
+LIBRARY = -lpthread -lglog -lm
 #train code
 CPP_tag = -std=gnu++11
 

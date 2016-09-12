@@ -4,7 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <string.h>
-#include "predict.h"
+#include <math.h>
 
 #define MPI_NON_CLK_TAG 99
 #define MPI_CLK_TAG 199
@@ -29,28 +29,29 @@ class Predict{
     }
     ~Predict(){}
 
-    void predict(std::vector<float> glo_w){
-        std::cout<<"glo_w size "<<glo_w.size()<<std::endl;
-        std::vector<float> predict_result;
+    //void predict(std::vector<float> glo_w){
+    void predict(float* glo_w){
+        //std::cout<<"glo_w size "<<glo_w.size()<<std::endl;
         for(int i = 0; i < data->fea_matrix.size(); i++) {
 	        float x = 0.0;
             for(int j = 0; j < data->fea_matrix[i].size(); j++) {
-                int idx = data->fea_matrix[i][j].idx;
+                long int idx = data->fea_matrix[i][j].idx;
                 float val = data->fea_matrix[i][j].val;
+                //if(isnan(x)) return;
                 x += glo_w[idx] * val;
             }
-        
-            if(x < -30){
+
+            double ex;
+            if(x < -10){
                 pctr = 1e-6;
             }
-            else if(x > 30){
+            else if(x > 10){
                 pctr = 1.0;
             }
             else{
-                double ex = pow(2.718281828, x);
+                ex = pow(2.718281828, x);
                 pctr = ex / (1.0 + ex);
             }
-
             int id = int(pctr*MAX_ARRAY_SIZE);
             clkinfo clickinfo;
             clickinfo.clk = data->label[i];
@@ -58,13 +59,9 @@ class Predict{
             clickinfo.idx = id;
             result_list.push_back(clickinfo);
         }
-    
-        for(size_t j = 0; j < predict_result.size(); j++){
-	        std::cout<<predict_result[j]<<"\t"<<1 - data->label[j]<<"\t"<<data->label[j]<<std::endl;
-        }
     }
 
-    int merge_clk(){//merge local node`s clk
+    void merge_clk(){//merge local node`s clk
         memset(g_nclk, 0, MAX_ARRAY_SIZE * sizeof(float));
         memset(g_clk, 0, MAX_ARRAY_SIZE * sizeof(float));
         int cnt = result_list.size();
@@ -73,7 +70,6 @@ class Predict{
             g_nclk[idx] += result_list[i].nclk;
             g_clk[idx] += result_list[i].clk;
         }
-        return 0;
     }
 
     int auc_cal(float* all_clk, float* all_nclk, double& auc_res){
@@ -116,7 +112,8 @@ class Predict{
         }
     }
 
-    void run(std::vector<float> w){
+    //void run(std::vector<float> w){
+    void run(float* w){
         predict(w);
         double total_clk = 0.0;
         double total_nclk = 0.0;
@@ -127,7 +124,7 @@ class Predict{
         mpi_auc(nproc, rank, auc);
 
         if(MASTER_ID == rank){
-                printf("AUC = %lf\n", auc);
+            printf("AUC = %lf\n", auc);
         }
 
     }
@@ -143,8 +140,8 @@ class Predict{
     float* g_clk;
     double g_total_clk;
     double g_total_nclk;
+
     float pctr;
-    //MPI process info
     int nproc; // total num of process in MPI comm world
     int rank; // my process rank in MPT comm world
 };

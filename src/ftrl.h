@@ -1,13 +1,14 @@
 #ifndef FTRL_H
 #define FTRL_H
 #include "load_data.h"
+#include "predict.h"
 #include "mpi.h"
 #include <math.h>
 
 class FTRL{
     public:
-        FTRL(Load_Data* load_data, int total_num_proc, int my_rank) 
-            : data(load_data), num_proc(total_num_proc), rank(my_rank){
+        FTRL(Load_Data* load_data, Predict* predict, int total_num_proc, int my_rank) 
+            : data(load_data), pred(predict), num_proc(total_num_proc), rank(my_rank){
             init();
         }
         ~FTRL(){}
@@ -81,7 +82,12 @@ class FTRL{
             int batched = 0;
             while(row < data->fea_matrix.size()){
                 batched++;
-                std::cout<<"rank "<<rank<<" step "<<i<<" batch "<<batched<<std::endl;
+                if(batched % 100 == 0){
+                    std::cout<<"rank "<<rank<<" step "<<i<<" batch "<<batched<<std::endl;
+                    std::cout<<"============================"<<std::endl;
+                    pred->run(loc_w);
+                    std::cout<<"============================"<<std::endl;
+                }
                 if( (batched == batch_num_min - 5) ) break;
                 int lines = 0;
 
@@ -130,6 +136,7 @@ class FTRL{
     private:
     int finish_flag;
     Load_Data* data;
+    Predict* pred;
 
     float* glo_w;
     float* loc_g;
