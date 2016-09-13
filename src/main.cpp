@@ -3,8 +3,6 @@
 #include "load_data.h"
 #include "ftrl.h"
 #include "predict.h"
-#include <glog/logging.h>
-//#include "gtest/gtest.h"
 
 int main(int argc,char* argv[]){  
     int rank, nproc;
@@ -14,10 +12,6 @@ int main(int argc,char* argv[]){
     MPI_Comm_rank(MPI_COMM_WORLD,&rank);
     MPI_Comm_size(MPI_COMM_WORLD,&nproc);
     MPI_Get_processor_name(processor_name,&namelen);
-    /*google::InitGoogleLogging(argv[0]);
-    FLAGS_log_dir = "./log";
-    LOG(INFO) << "my process rank: "<< rank <<", totoal process num: "<< nproc <<std::endl;
-    */
     std::cout<<"my host = "<<processor_name<<" my rank = "<<rank<<std::endl;
     
     int stepnum = atoi(argv[2]);
@@ -29,9 +23,9 @@ int main(int argc,char* argv[]){
 
     Load_Data test_data(test_data_path);
     test_data.load_data_batch(nproc, rank);
-
     Predict predict(&test_data, nproc, rank);
 
+    //boost::threadpool::pool tp(8);
     Load_Data train_data(train_data_path); 
     train_data.load_data_batch(nproc, rank);
 
@@ -45,10 +39,9 @@ int main(int argc,char* argv[]){
 	        //if(ftrl.loc_w[j] != 0)std::cout<<"w["<< j << "]: "<<ftrl.loc_w[j]<<std::endl;
 	        model.push_back(ftrl.loc_w[j]);
         }
+        std::cout<<"rank "<<rank<<" train finished! "<<processor_name<<std::endl;
+        predict.run(ftrl.loc_w);
     }
-    std::cout<<"rank "<<rank<<" finish train! "<<processor_name<<std::endl;
-
-    //predict.run(model);
 
     MPI::Finalize();
     return 0;

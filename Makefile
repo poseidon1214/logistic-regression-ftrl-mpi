@@ -1,8 +1,8 @@
 #!/bin/bash
-INCLUDEPATH = -I/usr/local/include/ 
+INCLUDEPATH = -I/usr/local/include/ -I/usr/include
 LIBRARYPATH = -L/usr/local/lib 
-LIBRARY = -lpthread -lglog -lm
-#train code
+#LIBRARY = -lboost_thread -lboost_system -lpthread -lglog -lm
+LIBRARY = -lpthread -lm
 CPP_tag = -std=gnu++11
 
 train:main.o
@@ -10,12 +10,6 @@ train:main.o
 
 main.o: src/main.cpp
 	mpicxx $(CPP_tag) $(INCLUDEPATH) -c src/main.cpp
-
-train_ut: train_uttest.o owlqn.o
-	mpicxx -o train_ut train_uttest.o owlqn.o $(LIB) $(GLOG_LIB) -lopenblas -lpthread -L ./lib -lgtest
-
-train_uttest.o: src/train_uttest.cpp
-	mpicxx  -I ./include $(GLOG_INCLUDE) -c src/train_uttest.cpp
 
 clean:
 	rm -f *~ train predict train_ut *.o
