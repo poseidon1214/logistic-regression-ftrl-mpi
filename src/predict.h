@@ -36,7 +36,7 @@ class Predict{
 	        float x = 0.0;
             for(int j = 0; j < data->fea_matrix[i].size(); j++) {
                 long int idx = data->fea_matrix[i][j].idx;
-                float val = data->fea_matrix[i][j].val;
+                int val = data->fea_matrix[i][j].val;
                 //if(isnan(x)) return;
                 x += glo_w[idx] * val;
             }

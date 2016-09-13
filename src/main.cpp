@@ -14,7 +14,7 @@ int main(int argc,char* argv[]){
     MPI_Get_processor_name(processor_name,&namelen);
     std::cout<<"my host = "<<processor_name<<" my rank = "<<rank<<std::endl;
     
-    int stepnum = atoi(argv[2]);
+    int epochnum = atoi(argv[2]);
     int batchsize = atoi(argv[3]);
     char train_data_path[1024];
     snprintf(train_data_path, 1024, "%s-%05d", argv[4], rank);
@@ -32,7 +32,7 @@ int main(int argc,char* argv[]){
     std::vector<float> model;
     if(strcmp(argv[1], "ftrl") == 0){
         FTRL ftrl(&train_data, &predict, nproc, rank);
-        ftrl.step = stepnum;
+        ftrl.epochs = epochnum;
         ftrl.batch_size = batchsize;
         ftrl.ftrl();
         for(int j = 0; j < train_data.glo_fea_dim; j++){
