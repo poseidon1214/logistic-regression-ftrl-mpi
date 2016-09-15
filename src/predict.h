@@ -21,7 +21,6 @@ class Predict{
             : data(load_data), nproc(total_num_proc), rank(my_rank){
         pctr = 0.0;
         MAX_ARRAY_SIZE = 1000;
-        MAX_BUF_SIZE = 2048;
         g_all_non_clk = new float[MAX_ARRAY_SIZE];
         g_all_clk = new float[MAX_ARRAY_SIZE];
         g_nclk = new float[MAX_ARRAY_SIZE];
@@ -131,7 +130,6 @@ class Predict{
     Load_Data* data;
     std::vector<clkinfo> result_list;
     int MAX_ARRAY_SIZE;
-    int MAX_BUF_SIZE;
     float* g_all_non_clk;
     float* g_all_clk;
     float* g_nclk;
