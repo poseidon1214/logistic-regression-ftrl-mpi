@@ -8,172 +8,147 @@
 class FTRL{
     public:
         FTRL(Load_Data* load_data, Predict* predict, int total_num_proc, int my_rank) 
-            : data(load_data), pred(predict), num_proc(total_num_proc), rank(my_rank){
-            init();
+                        : data(load_data), pred(predict), num_proc(total_num_proc), rank(my_rank){
+                                init();
         }
         ~FTRL(){}
 
-    void init(){
-        loc_w = new float[data->glo_fea_dim]();
-        loc_g = new float[data->glo_fea_dim]();
-        glo_g = new float[data->glo_fea_dim]();
-        //need only by master node
-        loc_z = new float[data->glo_fea_dim]();
-        loc_sigma = new float[data->glo_fea_dim]();
-        loc_n = new float[data->glo_fea_dim]();
-        alpha = 1.0;
-        beta = 1.0;
-        lambda1 = 0.0;
-        lambda2 = 1.0;
-        bias = 0.1; 
+        void init(){
+            row = 0;
 
-        index = 0;
-        value = 0.0, 
-        pctr = 0.0;
-    }
+            loc_w = new float[data->glo_fea_dim]();
+            loc_g = new float[data->glo_fea_dim]();
+            glo_g = new float[data->glo_fea_dim]();
+            loc_z = new float[data->glo_fea_dim]();
+            loc_sigma = new float[data->glo_fea_dim]();
+            loc_n = new float[data->glo_fea_dim]();
+        }
 
-    float sigmoid(float x){
-        if(x < -30) return 1e-6;
-        else if(x > 30) return 1.0;
-        else{
-            double ex = pow(2.718281828, x);
-            return ex / (1.0 + ex);
+        float sigmoid(float x){
+            if(x < -30) return 1e-6;
+            else if(x > 30) return 1.0;
+            else{
+                double ex = pow(2.718281828, x);
+                return ex / (1.0 + ex);
+            }
         }
-    }
-    void allreduce_gradient(){
-        if(rank != 0){//send gradient to rank 0;
-            MPI_Send(loc_g, data->glo_fea_dim, MPI_FLOAT, 0, 99, MPI_COMM_WORLD);
-        }
-        else if(rank == 0){
+
+        void update(){// only for master node
+            //reduce global gradient
             for(int j = 0; j < data->glo_fea_dim; j++){//store local gradient to glo_g;
                 glo_g[j] = loc_g[j];
             }
-            for(int r = 1; r < num_proc; r++){//receive other node`s gradient and store to glo_g;
-                MPI_Recv(loc_g, data->glo_fea_dim, MPI_FLOAT, r, 99, MPI_COMM_WORLD, &status);
+            for(int rankid = 1; rankid < num_proc; rankid++){//receive other node`s gradient and store to glo_g;
+                MPI_Recv(loc_g, data->glo_fea_dim, MPI_FLOAT, rankid, 99, MPI_COMM_WORLD, &status);
                 for(int j = 0; j < data->glo_fea_dim; j++){
                     glo_g[j] += loc_g[j];
                 }
             }
             for(int j = 0; j < data->glo_fea_dim; j++){
                 glo_g[j] /= num_proc;
-            }//end for
-        }//end if
-    }
-
-    void update_parameter(){
-        for(int col = 0; col < data->glo_fea_dim; col++){
-            float new_glog = glo_g[col];
-            float old_loc_n = loc_n[col];
-            float old_loc_z = loc_z[col]; 
-            float old_loc_w = loc_w[col];
-
-            loc_sigma[col] = ( sqrt(old_loc_n + new_glog * new_glog) - sqrt(old_loc_n) ) / alpha;
-            loc_n[col] = old_loc_n + new_glog * new_glog;
-            loc_z[col] = old_loc_z + new_glog - loc_sigma[col] * old_loc_w;
-            //update loc_w
-            if(abs(loc_z[col]) <= lambda1){
-                 loc_w[col] = 0.0;
             }
-            else{
-                float tmpr= 0.0;
-                if(loc_z[col] >= 0) tmpr = loc_z[col] - lambda1;
-                else tmpr = loc_z[col] + lambda1;
-                float tmpl = -1 * ( (beta + sqrt(loc_n[col])) / alpha  + lambda2);
-                loc_w[col] = tmpr / tmpl;
+            //update parameter
+            for(int col = 0; col < data->glo_fea_dim; col++){
+                //the first update sigma, z, n
+                loc_sigma[col] = ( sqrt (loc_n[col] + glo_g[col] * glo_g[col]) - sqrt(loc_n[col]) ) / alpha;
+                loc_z[col] += glo_g[col] - loc_sigma[col] * loc_w[col];
+                loc_n[col] += glo_g[col] * glo_g[col];
+                //the secondary update w
+                if(abs(loc_z[col]) <= lambda1){
+                    loc_w[col] = 0.0;
+                }
+                else{
+                    float tmpr= 0.0;
+                    if(loc_z[col] >= 0) tmpr = loc_z[col] - lambda1;
+                    else tmpr = loc_z[col] + lambda1;
+                    float tmpl = -1 * ( ( beta + sqrt(loc_n[col]) ) / alpha  + lambda2);
+                    loc_w[col] = tmpr / tmpl;
+                }
             }
         }
-    }
 
-    void batch_gradients(int& row){
-        for(int line = 0; line < batch_size; line++){//batch gradient
-            float wx = bias;
-            for(int col = 0; col < data->fea_matrix[row].size(); col++){//for one instance pctr
-                index = data->fea_matrix[row][col].idx;
-                value = data->fea_matrix[row][col].val;
-                wx += loc_w[index] * value;
-            }
+        void batch_gradient_calculate(int &row){
+            int index = 0; float value = 0.0; float pctr = 0;
+            for(int line = 0; line < batch_size; line++){
+                float wx = bias;
+                for(int col = 0; col < data->fea_matrix[row].size(); col++){//for one instance
+                    index = data->fea_matrix[row][col].idx;
+                    value = data->fea_matrix[row][col].val;
+                    wx += loc_w[index] * value;
+                }
+                pctr = sigmoid(wx);
+                for(int col = 0; col < data->fea_matrix[row].size(); col++){
+                    index = data->fea_matrix[row][col].idx;
+                    value = data->fea_matrix[row][col].val;
+                    loc_g[index] += (pctr - data->label[row]) * value;
+                }
+                row++;
+            }//end for
+        }
 
-            pctr = sigmoid(wx);
-
-            for(int col = 0; col < data->fea_matrix[row].size(); col++){//for one instance gradient
-                index = data->fea_matrix[row][col].idx;
-                value = data->fea_matrix[row][col].val;
-                loc_g[index] += (pctr - data->label[row]) * value;
-            }
-            row++;
-            line++;
-        }//end batch for
-    }
-
-    void ftrl(){
-        int batch_num_min = 0;
-        int total_batch_num = data->fea_matrix.size() / batch_size;
-        MPI_Allreduce(&total_batch_num, &batch_num_min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
-        for(int epoch = 0; epoch < epochs; epoch++){
-            int row = 0, batch = 0;
-            while(row < data->fea_matrix.size()){
-                if(epoch % 5 == 0 && epoch != 0 && batch % 100 == 0){
-                    std::cout<<" epoch "<<epoch<<" batch "<<batch<<" rank "<<rank<<std::endl;
-                    std::cout<<"==============================================="<<std::endl;
+        void ftrl(){
+            int batch_num = data->fea_matrix.size() / batch_size;
+            int batch_num_min = 0;
+            MPI_Allreduce(&batch_num, &batch_num_min, 1, MPI_INT, MPI_MIN, MPI_COMM_WORLD);
+            for(int epoch = 0; epoch < epochs; epoch++){
+                row = 0;
+                int batches = 0;
+                if(epoch % 5 == 0  || batches % 1000 == 0){
+                    std::cout<<"rank "<<rank<<" epoch "<<epoch<<" batch "<<batches<<std::endl;
                     pred->run(loc_w);
-                    std::cout<<"==============================================="<<std::endl;
                 }
-               
-                batch_gradients(row);
-
-                for(int col = 0; col < data->glo_fea_dim; col++){
-                    loc_g[col] /= batch_size;
-                }
-
-                allreduce_gradient();
-
-                if(rank == 0){
-                    update_parameter();
-                }
-                //sync w
-                if(rank == 0){
-                    for(int r = 1; r < num_proc; r++){
-                        MPI_Send(loc_w, data->glo_fea_dim, MPI_FLOAT, r, 999, MPI_COMM_WORLD);
+                if( (batches == batch_num_min - 1) ) break;
+                while(row < data->fea_matrix.size()){
+                    batch_gradient_calculate(row);
+                    for(int col = 0; col < data->glo_fea_dim; col++){
+                        loc_g[col] /= batch_size;
                     }
-                }
-                else if(rank != 0){
-                    MPI_Recv(loc_w, data->glo_fea_dim, MPI_FLOAT, 0, 999, MPI_COMM_WORLD, &status);
-                }
-                batch++;
-                if(batch == (batch_num_min-1)) break;
-                MPI_Barrier(MPI_COMM_WORLD);//will it make the process slowly?
-            }//end while
-        }//end all step for
-    }//end ftrl
+
+                    if(rank != 0){//slave nodes send gradient to master node;
+                        MPI_Send(loc_g, data->glo_fea_dim, MPI_FLOAT, 0, 99, MPI_COMM_WORLD);
+                    }
+                    else if(rank == 0){//rank 0 is master node
+                        update();
+                    }
+                    //sync w of all nodes in cluster
+                    if(rank == 0){
+                        for(int r = 1; r < num_proc; r++){
+                            MPI_Send(loc_w, data->glo_fea_dim, MPI_FLOAT, r, 999, MPI_COMM_WORLD);
+                        }
+                    }
+                    else if(rank != 0){
+                        MPI_Recv(loc_w, data->glo_fea_dim, MPI_FLOAT, 0, 999, MPI_COMM_WORLD, &status);
+                    }
+                    MPI_Barrier(MPI_COMM_WORLD);//will it make the procedure slowly? is it necessary?
+                }//end row while
+                batches++;
+            }//end epoch for
+        }//end ftrl
 
     public:
-    float* loc_w;
-    int epochs;
-    int batch_size;
-
+        float* loc_w;
+        int epochs;
+        int batch_size;
+        float bias;
+        float alpha;
+        float beta;
+        float lambda1;
+        float lambda2;
     private:
-    Load_Data* data;
-    Predict* pred;
+        MPI_Status status;
 
-    MPI_Status status;
+        Load_Data* data;
+        Predict* pred;
+        
+        int row;
 
-    float* loc_g;
-    float* glo_g;
-    float* loc_z;
-    float* loc_sigma;
-    float* loc_n;
+        float* loc_g;
+        float* glo_g;
+        float* loc_z;
+        float* loc_sigma;
+        float* loc_n;
 
-    float alpha;
-    float beta;
-    float lambda1;
-    float lambda2;
-    float bias;
-
-    int index = 0;
-    float value = 0.0;
-    float pctr = 0.0;
-
-    int num_proc;
-    int rank;
+        int num_proc;
+        int rank;
 };
 #endif

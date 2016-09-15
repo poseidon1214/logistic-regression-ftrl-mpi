@@ -37,19 +37,17 @@ class Predict{
             for(int j = 0; j < data->fea_matrix[i].size(); j++) {
                 long int idx = data->fea_matrix[i][j].idx;
                 int val = data->fea_matrix[i][j].val;
-                //if(isnan(x)) return;
                 x += glo_w[idx] * val;
             }
 
-            double ex;
-            if(x < -10){
+            if(x < -30){
                 pctr = 1e-6;
             }
-            else if(x > 10){
+            else if(x > 30){
                 pctr = 1.0;
             }
             else{
-                ex = pow(2.718281828, x);
+                double ex = pow(2.718281828, x);
                 pctr = ex / (1.0 + ex);
             }
             int id = int(pctr*MAX_ARRAY_SIZE);
